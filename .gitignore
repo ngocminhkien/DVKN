@@ -23,3 +23,4 @@ venv.bak/
 
 # Docker
 .dockerignore
+job-logs.txt

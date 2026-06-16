@@ -10,4 +10,5 @@ logs:
 	docker compose logs -f
 
 test-compose:
-	newman run postman/collections/analytics_service.json -e postman/environments/local.json
+	newman run postman/collections/b5_analytics_test.json -e postman/environments/local.json
+

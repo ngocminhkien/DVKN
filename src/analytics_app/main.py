@@ -2,13 +2,15 @@ import os
 import psycopg2
 from fastapi import FastAPI
 
-# Import file router của B6
+
 from analytics_app.routers import b6_gate 
+from analytics_app.routers import summary # Thêm dòng này
 
 app = FastAPI(title="Analytics Service (B5) - Smart Campus")
 
-# Nhúng router B6 vào ứng dụng chính
+# Nhúng các router vào ứng dụng chính
 app.include_router(b6_gate.router)
+app.include_router(summary.router) # Thêm dòng này
 
 @app.get("/health")
 def health_check():

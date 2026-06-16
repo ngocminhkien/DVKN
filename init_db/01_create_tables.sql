@@ -1,3 +1,4 @@
+CREATE EXTENSION IF NOT EXISTS timescaledb;
 -- Bảng chứa dữ liệu cảm biến IoT (Từ nhóm B1)
 CREATE TABLE IF NOT EXISTS sensor_events (
     time TIMESTAMPTZ NOT NULL,

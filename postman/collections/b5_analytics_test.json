@@ -1,0 +1,91 @@
+{
+	"info": {
+		"name": "B5 Analytics API Tests",
+		"description": "Kịch bản kiểm thử tự động cho hệ thống Analytics B5",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Database is connected\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.database).to.eql(\"connected\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/health",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. B6 Export Access & Fire Alarm",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201 Created\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"pm.test(\"Response is success\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"success\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"from\": \"2026-06-16T00:00:00Z\",\n  \"to\": \"2026-06-16T23:59:59Z\",\n  \"data\": [\n    {\n      \"log_type\": \"ACCESS\",\n      \"timestamp\": \"2026-06-16T08:30:00Z\",\n      \"details\": {\n        \"uid\": \"04:A1:B2:C3\",\n        \"student_id\": \"SV001\",\n        \"class_name\": \"SE1501\",\n        \"gate_id\": \"GATE-A\",\n        \"action\": \"GRANTED\"\n      }\n    },\n    {\n      \"log_type\": \"FIRE_ALARM\",\n      \"timestamp\": \"2026-06-16T09:15:00Z\",\n      \"details\": {\n        \"device_id\": \"esp32-lab-a101\",\n        \"location\": \"Lab A101\",\n        \"temperature\": 52.5,\n        \"action\": \"EVACUATION_TRIGGERED\"\n      }\n    }\n  ]\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8000/analytics/export",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"analytics",
+						"export"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

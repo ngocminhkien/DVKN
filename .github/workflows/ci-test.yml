@@ -1,0 +1,57 @@
+name: CI Automated Testing
+
+# Kích hoạt tự động khi Push hoặc Pull Request vào nhánh main và dev
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  test-analytics-api:
+    name: Build & Test Analytics API
+    runs-on: ubuntu-latest # Chạy trên máy chủ ảo Linux của GitHub
+
+    steps:
+      # 1. Kéo mã nguồn mới nhất về máy chủ ảo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Cài đặt môi trường Node.js (để chạy Newman)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Cài đặt thư viện kiểm thử Newman
+      - name: Install Newman
+        run: npm install -g newman
+
+      # 4. Tạo file cấu hình môi trường từ file mẫu
+      - name: Prepare Environment File
+        run: cp .env.example .env
+
+      # 5. Khởi động toàn bộ hệ thống bằng Docker Compose (gọi lệnh từ Makefile)
+      - name: Start Docker Compose System
+        run: make compose-up
+
+      # 6. Ép hệ thống chờ TimescaleDB và API khởi động hoàn tất (chờ tối đa 30s)
+      - name: Wait for API to be healthy
+        run: |
+          echo "Đang chờ API Analytics khởi động..."
+          sleep 15
+          curl --retry 5 --retry-delay 5 --retry-connrefused http://localhost:8000/health
+          echo "Hệ thống đã sẵn sàng!"
+
+      # 7. Bắn test tự động bằng Newman
+      - name: Run Newman Tests
+        run: make test-compose
+
+      # 8. Dọn dẹp hệ thống (luôn chạy kể cả khi test fail)
+      - name: Tear Down System
+        if: always()
+        run: make compose-down

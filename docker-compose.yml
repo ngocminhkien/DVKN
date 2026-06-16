@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - team-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-analytics_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      DB_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+    networks:
+      - team-internal
+    depends_on:
+      db:
+        condition: service_healthy
+
+  data-worker:
+    image: python:3.11-slim
+    networks:
+      - team-internal
+    command: ["sh", "-c", "while true; do echo 'Worker đang chạy...'; sleep 60; done"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  team-internal:
+    driver: bridge

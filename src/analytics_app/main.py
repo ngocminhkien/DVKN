@@ -4,13 +4,15 @@ from fastapi import FastAPI
 
 
 from analytics_app.routers import b6_gate 
-from analytics_app.routers import summary # Thêm dòng này
+from analytics_app.routers import summary
+from analytics_app.routers import b3_gate
 
 app = FastAPI(title="Analytics Service (B5) - Smart Campus")
 
 # Nhúng các router vào ứng dụng chính
 app.include_router(b6_gate.router)
-app.include_router(summary.router) # Thêm dòng này
+app.include_router(summary.router)
+app.include_router(b3_gate.router)
 
 @app.get("/health")
 def health_check():

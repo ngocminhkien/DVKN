@@ -26,3 +26,20 @@ CREATE TABLE IF NOT EXISTS campus_logs (
 
 -- Chuyển thành siêu bảng (Hypertable)
 SELECT create_hypertable('campus_logs', 'time', if_not_exists => TRUE);
+
+-- ==========================================
+-- Bảng chứa sự kiện quẹt thẻ từ B3 (Access Gate)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS gate_events (
+    time TIMESTAMPTZ NOT NULL,
+    event_id VARCHAR(100) NOT NULL,
+    gate_id VARCHAR(50),
+    direction VARCHAR(10),
+    access_granted BOOLEAN,
+    person_type VARCHAR(50),
+    source_service VARCHAR(50),
+    product VARCHAR(50)
+);
+
+-- Chuyển thành siêu bảng (Hypertable)
+SELECT create_hypertable('gate_events', 'time', if_not_exists => TRUE);

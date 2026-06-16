@@ -1,12 +1,15 @@
-version: '3.8'
-
 services:
   db:
     image: timescale/timescaledb:latest-pg15
+    container_name: analytics-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init_db:/docker-entrypoint-initdb.d
     networks:
       - team-internal
     healthcheck:
@@ -18,6 +21,7 @@ services:
   api:
     build:
       context: .
+    container_name: analytics-api
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
@@ -35,9 +39,10 @@ services:
 
   data-worker:
     image: python:3.11-slim
+    container_name: analytics-worker
     networks:
       - team-internal
-    command: ["sh", "-c", "while true; do echo 'Worker đang chạy...'; sleep 60; done"]
+    command: ["sh", "-c", "while true; do echo 'Worker đang chờ nhiệm vụ...'; sleep 60; done"]
     depends_on:
       db:
         condition: service_healthy

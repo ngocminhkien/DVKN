@@ -1,6 +1,5 @@
 name: CI Automated Testing
 
-# Kích hoạt tự động khi Push hoặc Pull Request vào nhánh main và dev
 on:
   push:
     branches:
@@ -14,32 +13,48 @@ on:
 jobs:
   test-analytics-api:
     name: Build & Test Analytics API
-    runs-on: ubuntu-latest # Chạy trên máy chủ ảo Linux của GitHub
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. Kéo mã nguồn mới nhất về máy chủ ảo
+      # 1. Kéo mã nguồn
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Cài đặt môi trường Node.js (để chạy Newman)
+      # 2. Cài đặt Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 3. Cài đặt thư viện kiểm thử Newman
+      # 3. Cài đặt Newman
       - name: Install Newman
         run: npm install -g newman
 
-      # 4. Tạo file cấu hình môi trường từ file mẫu
+      # 4. Tạo file .env để app chạy
       - name: Prepare Environment File
         run: cp .env.example .env
 
-      # 5. Khởi động toàn bộ hệ thống bằng Docker Compose (gọi lệnh từ Makefile)
+      # 5. Tạo file environment cho Postman (CÁCH 2)
+      - name: Create Postman Environment File
+        run: |
+          mkdir -p postman/environments
+          echo '{
+            "id": "ci-env-id",
+            "name": "local",
+            "values": [
+              {
+                "key": "base_url",
+                "value": "http://localhost:8000",
+                "enabled": true
+              }
+            ]
+          }' > postman/environments/local.json
+
+      # 6. Khởi động Docker Compose
       - name: Start Docker Compose System
         run: make compose-up
 
-      # 6. Ép hệ thống chờ TimescaleDB và API khởi động hoàn tất (chờ tối đa 30s)
+      # 7. Chờ API healthy
       - name: Wait for API to be healthy
         run: |
           echo "Đang chờ API Analytics khởi động..."
@@ -47,11 +62,11 @@ jobs:
           curl --retry 5 --retry-delay 5 --retry-connrefused http://localhost:8000/health
           echo "Hệ thống đã sẵn sàng!"
 
-      # 7. Bắn test tự động bằng Newman
+      # 8. Chạy test
       - name: Run Newman Tests
         run: make test-compose
 
-      # 8. Dọn dẹp hệ thống (luôn chạy kể cả khi test fail)
+      # 9. Dọn dẹp
       - name: Tear Down System
         if: always()
         run: make compose-down

@@ -1,34 +1,33 @@
-from fastapi import FastAPI, HTTPException
-import psycopg2
 import os
+import psycopg2
+from fastapi import FastAPI
 
-app = FastAPI(title="Analytics Service")
+
+from analytics_app.routers import b6_gate 
+from analytics_app.routers import summary
+from analytics_app.routers import b3_gate
+
+app = FastAPI(title="Analytics Service (B5) - Smart Campus")
+
+# Nhúng các router vào ứng dụng chính
+app.include_router(b6_gate.router)
+app.include_router(summary.router)
+app.include_router(b3_gate.router)
 
 @app.get("/health")
 def health_check():
-    # Lấy thông tin kết nối từ biến môi trường
-    host = os.environ.get("DB_HOST", "db")
-    database = os.environ.get("POSTGRES_DB", "analytics_db")
-    user = os.environ.get("POSTGRES_USER", "postgres")
-    password = os.environ.get("POSTGRES_PASSWORD", "postgres")
-    port = os.environ.get("DB_PORT", "5432")
-
+    status = {"status": "healthy", "service": "analytics-service"}
     try:
-        # Cố gắng kết nối tới cơ sở dữ liệu TimescaleDB
         conn = psycopg2.connect(
-            host=host,
-            database=database,
-            user=user,
-            password=password,
-            port=port
+            host=os.getenv("DB_HOST", "db"),
+            database=os.getenv("POSTGRES_DB", "analytics_db"),
+            user=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "postgres"),
+            connect_timeout=3
         )
+        status["database"] = "connected"
         conn.close()
-        
-        return {
-            "status": "healthy",
-            "database": "connected"
-        }
     except Exception as e:
-        # Xử lý lỗi nếu kết nối thất bại
-        print(f"Lỗi kết nối CSDL: {e}")
-        raise HTTPException(status_code=503, detail="Database connection failed")
+        status["database"] = f"error: {str(e)}"
+    
+    return status

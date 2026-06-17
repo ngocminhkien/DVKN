@@ -1,7 +1,7 @@
 import os
 import psycopg2
 from fastapi import FastAPI
-
+from fastapi.responses import HTMLResponse
 
 from analytics_app.routers import b6_gate 
 from analytics_app.routers import summary
@@ -31,3 +31,12 @@ def health_check():
         status["database"] = f"error: {str(e)}"
     
     return status
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def get_dashboard():
+    # Lấy đường dẫn thư mục hiện tại của file main.py
+    current_dir = os.path.dirname(__file__)
+    file_path = os.path.join(current_dir, "dashboard.html")
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.read()

@@ -31,6 +31,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
+      B1_IOT_URL: ${B1_IOT_URL}
+      B2_CAMERA_URL: ${B2_CAMERA_URL}
+      B3_ACCESS_URL: ${B3_ACCESS_URL}
+      B4_VISION_URL: ${B4_VISION_URL}
+      B6_CORE_URL: ${B6_CORE_URL}
+      B7_NOTIFICATION_URL: ${B7_NOTIFICATION_URL}
+      B2_CAMERA_API_URL: ${B2_CAMERA_API_URL}
+      B2_BEARER_TOKEN: ${B2_BEARER_TOKEN}
     networks:
       - team-internal
     depends_on:
@@ -52,7 +60,6 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD}
     networks:
       - team-internal
-    # Ghi đè lệnh khởi động để chạy file worker
     command: [ "python", "src/analytics_app/workers/mqtt_subscriber.py" ]
     depends_on:
       db:

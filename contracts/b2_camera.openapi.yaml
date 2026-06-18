@@ -1,0 +1,40 @@
+openapi: 3.1.0
+info:
+  title: Product B - Camera Stream API (B2)
+  version: 0.1.0-b2
+  description: Trích xuất hợp đồng Webhook nhóm B2 đẩy sự kiện nhận diện sang B5.
+paths:
+  /analytics/camera-events:
+    post:
+      summary: Webhook sự kiện Camera
+      description: B2 gọi POST sang cổng này của B5 khi phát hiện bất thường.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/B2CameraEvent"
+      responses:
+        "202":
+          description: Đã nhận sự kiện
+components:
+  schemas:
+    B2CameraEvent:
+      type: object
+      required: [cameraId, eventType, timestamp, severity]
+      properties:
+        sourceService:
+          type: string
+          example: B2_CAMERA_STREAM
+        eventType:
+          type: string
+          example: AI_DETECTION
+        cameraId:
+          type: string
+          example: CAM-001
+        objectCount:
+          type: integer
+          example: 1
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]

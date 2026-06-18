@@ -12,7 +12,11 @@ MQTT_BROKER = os.getenv("MQTT_BROKER", "broker.hivemq.com")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 8883))
 MQTT_USER = os.getenv("MQTT_USER", "")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
-MQTT_TOPIC = "smart-campus/events/sensor"
+# CODE CŨ:
+# MQTT_TOPIC = "campus/sensor/metrics" # Sửa theo đúng Hợp đồng nhóm B1
+# CODE MỚI THAY THẾ:
+MQTT_TOPIC = "smart-campus/events/sensor" # Sửa lại theo yêu cầu cập nhật topic của B1
+
 
 def get_db_connection():
     try:
@@ -38,6 +42,7 @@ def on_connect(client, userdata, flags, rc):
         print(f"❌ Kết nối MQTT thất bại, mã lỗi: {rc}")
 
 def on_message(client, userdata, msg):
+    conn = None
     try:
         # 1. Đọc tin nhắn B1 gửi tới
         payload_str = msg.payload.decode('utf-8')
@@ -48,34 +53,40 @@ def on_message(client, userdata, msg):
             del payload["scenario_hint_for_teacher"]
             print("🛡️ Đã phát hiện và gỡ bỏ 'scenario_hint_for_teacher'.")
 
-        # 3. Trích xuất thông số
-        event_time = payload.get("timestamp", datetime.now().isoformat())
-        event_id = payload.get("event_id")
+        # 3. Trích xuất thông số theo Hợp đồng nhóm B1 (hỗ trợ fallback cấu hình cũ)
         device_id = payload.get("device_id")
-        temp = payload.get("temperature_c")
-        humidity = payload.get("humidity_percent")
+        temp = payload.get("temperature") or payload.get("temperature_c")
+        humidity = payload.get("humidity") or payload.get("humidity_percent")
+        event_time = payload.get("timestamp") or payload.get("time") or datetime.now().isoformat()
+        
+        event_id = payload.get("event_id") or f"b1-{device_id}-{int(time.time()*1000)}"
         co2 = payload.get("co2_ppm")
         status = payload.get("status")
         alert_level = payload.get("alert_level")
         reason = payload.get("reason")
         
-        # 4. Nhét vào TimescaleDB
+        # 4. Nhét vào TimescaleDB sử dụng try-finally tránh rò rỉ kết nối
         conn = get_db_connection()
         if conn:
-            cursor = conn.cursor()
-            query = """
-                INSERT INTO sensor_events 
-                (time, event_id, device_id, temperature_c, humidity_percent, co2_ppm, status, alert_level, reason, raw_payload)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(query, (event_time, event_id, device_id, temp, humidity, co2, status, alert_level, reason, json.dumps(payload)))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            print(f"💾 LƯU THÀNH CÔNG: Thiết bị {device_id} | Trạng thái: {status}")
-
+            try:
+                cursor = conn.cursor()
+                query = """
+                    INSERT INTO sensor_events 
+                    (time, event_id, device_id, temperature_c, humidity_percent, co2_ppm, status, alert_level, reason, raw_payload)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(query, (event_time, event_id, device_id, temp, humidity, co2, status, alert_level, reason, json.dumps(payload)))
+                conn.commit()
+                cursor.close()
+                print(f"💾 LƯU THÀNH CÔNG: Thiết bị {device_id} | Nhiệt độ: {temp}°C | Độ ẩm: {humidity}%")
+            except Exception as db_err:
+                print(f"[DB Error] Lỗi ghi DB trong worker: {db_err}")
+                conn.rollback()
     except Exception as e:
         print(f"⚠️ Lỗi khi xử lý bản tin MQTT: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 # ==========================================
 # Khởi động MQTT Client

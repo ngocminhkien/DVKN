@@ -6,3 +6,4 @@ uvicorn
 psycopg2-binary
 pydantic
 paho-mqtt
+requests

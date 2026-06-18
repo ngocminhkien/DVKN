@@ -1,0 +1,29 @@
+openapi: 3.1.0
+info:
+  title: Smart Campus — AI Vision API Contract (B4)
+  version: 1.0.0
+  description: Trích xuất hợp đồng Webhook của nhóm B4 gửi kết quả phân tích AI (Vật thể/Khuôn mặt) sang cho B5.
+paths:
+  /api/v1/analytics/vision:
+    post:
+      summary: Webhook nhận diện AI Vision
+      description: Gộp chung kết quả xử lý của B4. Phân loại dựa vào trường detectionType.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                detectionType:
+                  type: string
+                  enum: [OBJECT, FACE]
+                  description: Xác định payload là luồng nhận diện vật thể hay đối sánh khuôn mặt.
+                cameraId:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        "202":
+          description: Đã tiếp nhận sự kiện AI

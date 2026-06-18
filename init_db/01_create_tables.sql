@@ -13,6 +13,20 @@ CREATE TABLE IF NOT EXISTS sensor_events (
     raw_payload JSONB -- Lưu trữ toàn bộ cục JSON gốc phòng khi cần
 );
 
+-- ==========================================
+-- Bảng chứa kết quả phân tích Camera (từ B2)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS camera_frames (
+    frame_id VARCHAR(100) PRIMARY KEY,
+    camera_id VARCHAR(50),
+    accepted BOOLEAN,
+    timestamp TIMESTAMPTZ,
+    processed_at TIMESTAMPTZ,
+    motion_score FLOAT,
+    quality VARCHAR(50),
+    detections JSONB -- Lưu mảng nhận diện (người, xe...) dạng JSON
+);
+
 -- Chuyển thành siêu bảng (Hypertable) của TimescaleDB để tối ưu truy vấn thời gian
 SELECT create_hypertable('sensor_events', 'time', if_not_exists => TRUE);
 

@@ -1,0 +1,35 @@
+openapi: 3.1.0
+info:
+  title: Product B - Core Business Contract (B6)
+  version: 1.0.0
+  description: Hợp đồng mô tả luồng B6 đẩy dữ liệu xuất báo cáo cảnh báo tổng hợp sang cho B5.
+paths:
+  /analytics/export:
+    post:
+      summary: Webhook gửi dữ liệu báo cáo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoreExportData"
+      responses:
+        "201":
+          description: B5 đã lưu thành công
+components:
+  schemas:
+    CoreExportData:
+      type: object
+      required: [from_time, to_time, data]
+      properties:
+        from_time:
+          type: string
+          format: date-time
+        to_time:
+          type: string
+          format: date-time
+        data:
+          type: array
+          items:
+            type: object
+            description: Các bản ghi cảnh báo chi tiết

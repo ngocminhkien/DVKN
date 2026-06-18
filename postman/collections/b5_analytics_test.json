@@ -1,91 +1,156 @@
 {
-	"info": {
-		"name": "B5 Analytics API Tests",
-		"description": "Kịch bản kiểm thử tự động cho hệ thống Analytics B5",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "1. Health Check",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"pm.test(\"Database is connected\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.database).to.eql(\"connected\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8000/health",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8000",
-					"path": [
-						"health"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "2. B6 Export Access & Fire Alarm",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 201 Created\", function () {",
-							"    pm.response.to.have.status(201);",
-							"});",
-							"pm.test(\"Response is success\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.status).to.eql(\"success\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"from\": \"2026-06-16T00:00:00Z\",\n  \"to\": \"2026-06-16T23:59:59Z\",\n  \"data\": [\n    {\n      \"log_type\": \"ACCESS\",\n      \"timestamp\": \"2026-06-16T08:30:00Z\",\n      \"details\": {\n        \"uid\": \"04:A1:B2:C3\",\n        \"student_id\": \"SV001\",\n        \"class_name\": \"SE1501\",\n        \"gate_id\": \"GATE-A\",\n        \"action\": \"GRANTED\"\n      }\n    },\n    {\n      \"log_type\": \"FIRE_ALARM\",\n      \"timestamp\": \"2026-06-16T09:15:00Z\",\n      \"details\": {\n        \"device_id\": \"esp32-lab-a101\",\n        \"location\": \"Lab A101\",\n        \"temperature\": 52.5,\n        \"action\": \"EVACUATION_TRIGGERED\"\n      }\n    }\n  ]\n}"
-				},
-				"url": {
-					"raw": "http://localhost:8000/analytics/export",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8000",
-					"path": [
-						"analytics",
-						"export"
-					]
-				}
-			},
-			"response": []
-		}
-	]
+    "info": {
+        "name": "B5 Analytics API Tests (Full Coverage)",
+        "description": "Kịch bản kiểm thử toàn diện: Happy Path & Negative Cases cho hệ thống Analytics B5",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "1. Health Check (Happy Path)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Mã trạng thái là 200 OK\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "pm.test(\"Database đã kết nối\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.database).to.eql(\"connected\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8000/health",
+                    "protocol": "http",
+                    "host": ["localhost"],
+                    "port": "8000",
+                    "path": ["health"]
+                }
+            }
+        },
+        {
+            "name": "2. B3 Access Gate - Dữ liệu chuẩn (Happy Path)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Mã trạng thái là 202 Accepted\", function () {",
+                            "    pm.response.to.have.status(202);",
+                            "});",
+                            "pm.test(\"Báo cáo nhận thành công\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.received).to.be.true;",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"event_id\": \"acc-test-001\",\n  \"gate_id\": \"gate-main\",\n  \"direction\": \"IN\",\n  \"access_granted\": true,\n  \"person_type\": \"student\",\n  \"timestamp\": \"2026-06-16T07:30:00Z\"\n}"
+                },
+                "url": {
+                    "raw": "http://localhost:8000/api/v1/ingest/access",
+                    "protocol": "http",
+                    "host": ["localhost"],
+                    "port": "8000",
+                    "path": ["api", "v1", "ingest", "access"]
+                }
+            }
+        },
+        {
+            "name": "3. B3 Access Gate - Thiếu trường bắt buộc (Negative Case)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Mã trạng thái là 422 Unprocessable Entity\", function () {",
+                            "    pm.response.to.have.status(422);",
+                            "});",
+                            "pm.test(\"Hệ thống báo lỗi thiếu dữ liệu\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.detail[0].type).to.include(\"missing\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"gate_id\": \"gate-main\",\n  \"direction\": \"IN\"\n}"
+                },
+                "url": {
+                    "raw": "http://localhost:8000/api/v1/ingest/access",
+                    "protocol": "http",
+                    "host": ["localhost"],
+                    "port": "8000",
+                    "path": ["api", "v1", "ingest", "access"]
+                },
+                "description": "Cố tình gửi thiếu event_id và timestamp để xem API có chặn lại không."
+            }
+        },
+        {
+            "name": "4. B6 Export - Dữ liệu chuẩn (Happy Path)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Mã trạng thái là thành công (201 Created)\", function () {",
+                            "    pm.response.to.have.status(201);",
+                            "});",
+                            "pm.test(\"Lưu thành công dữ liệu từ B6\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.status).to.eql(\"success\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"from\": \"2026-06-16T00:00:00Z\",\n  \"to\": \"2026-06-17T00:00:00Z\",\n  \"data\": [\n    {\n      \"log_type\": \"ACCESS\",\n      \"timestamp\": \"2026-06-16T07:30:00Z\",\n      \"details\": {\n        \"severity\": \"LOW\",\n        \"event_type\": \"ACCESS\"\n      }\n    }\n  ]\n}"
+                },
+                "url": {
+                    "raw": "http://localhost:8000/analytics/export",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "analytics",
+                        "export"
+                    ]
+                }
+            }
+        }
+    ]
 }

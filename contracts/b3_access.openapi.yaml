@@ -1,0 +1,46 @@
+### 📄 2. File: `b3_access.openapi.yaml`
+*(Mô tả dữ liệu quẹt thẻ mà nhóm B3 sẽ đẩy sang nhà B5)*
+
+```yaml
+openapi: 3.1.0
+info:
+  title: Product B - Access Gate Contract (B3)
+  version: 1.0.0
+  description: Hợp đồng mô tả luồng dữ liệu nhóm B3 (Access Gate) đẩy sang cho B5 (Analytics) khi có sự kiện quẹt thẻ.
+paths:
+  /api/v1/ingest/access:
+    post:
+      summary: Webhook gửi sự kiện quẹt thẻ
+      description: B3 chủ động gọi POST vào API này của B5.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessEvent"
+      responses:
+        "202":
+          description: B5 đã tiếp nhận thành công
+components:
+  schemas:
+    AccessEvent:
+      type: object
+      required: [event_id, gate_id, direction, access_granted, person_type, timestamp]
+      properties:
+        event_id:
+          type: string
+          example: acc-test-001
+        gate_id:
+          type: string
+          example: gate-main
+        direction:
+          type: string
+          enum: [IN, OUT]
+        access_granted:
+          type: boolean
+        person_type:
+          type: string
+          enum: [student, staff, guest]
+        timestamp:
+          type: string
+          format: date-time

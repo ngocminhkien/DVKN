@@ -1,0 +1,205 @@
+openapi: 3.1.0
+info:
+  title: Product B - Analytics Service (Nhóm B5)
+  version: 1.0.0
+  description: Dịch vụ Analytics B5 tổng hợp dữ liệu từ IoT, Camera, Access Gate, AI Vision và Core Business.
+servers:
+  - url: http://localhost:8000
+    description: Server chạy Local/Docker
+tags:
+  - name: system
+  - name: ingestion
+  - name: dashboard
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: Kiểm tra trạng thái hệ thống
+      responses:
+        "200":
+          description: Service hoạt động bình thường
+  /api/v1/ingest/access:
+    post:
+      tags: [ingestion]
+      summary: Nhận log quẹt thẻ từ B3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessEvent"
+      responses:
+        "202":
+          description: Đã tiếp nhận
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /analytics/export:
+    post:
+      tags: [ingestion]
+      summary: Nhận dữ liệu tổng hợp từ B6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoreExportData"
+      responses:
+        "201":
+          description: Lưu thành công
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /analytics/camera-events:
+    post:
+      tags: [ingestion]
+      summary: Nhận cảnh báo nhận diện từ nhóm B2 (Webhook)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/B2CameraEvent"
+      responses:
+        "202":
+          description: Đã tiếp nhận sự kiện camera thành công
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/analytics/vision:
+    post:
+      tags: [ingestion]
+      summary: Nhận kết quả phân tích AI từ nhóm B4 (Webhook chung)
+      description: Nhận cả luồng nhận diện vật thể (OBJECT) và đối sánh khuôn mặt (FACE) dựa vào trường detectionType.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "202":
+          description: Đã tiếp nhận sự kiện AI
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/dashboard/summary:
+    get:
+      tags: [dashboard]
+      summary: API BFF cung cấp dữ liệu cho Front-end Dashboard
+      responses:
+        "200":
+          description: Trả về JSON tổng hợp các chỉ số
+components:
+  schemas:
+    AccessEvent:
+      type: object
+      required: [event_id, gate_id, direction, timestamp]
+      properties:
+        event_id:
+          type: string
+          example: acc-test-001
+        gate_id:
+          type: string
+          example: gate-main
+        direction:
+          type: string
+          enum: [IN, OUT]
+          example: IN
+        access_granted:
+          type: boolean
+          example: true
+        person_type:
+          type: string
+          example: student
+        timestamp:
+          type: string
+          format: date-time
+    CoreExportData:
+      type: object
+      required: [from_time, to_time, data]
+      properties:
+        from_time:
+          type: string
+          format: date-time
+        to_time:
+          type: string
+          format: date-time
+        data:
+          type: array
+          items:
+            type: object
+    Detection:
+      type: object
+      required: [label, confidence]
+      properties:
+        label:
+          type: string
+          example: person
+        confidence:
+          type: number
+          example: 0.96
+    B2CameraEvent:
+      type: object
+      required: [sourceService, eventType, cameraId, frameId, timestamp, processedAt, motionScore, detections, objectCount, labels, maxConfidence, abnormal, severity]
+      properties:
+        sourceService:
+          type: string
+          example: B2_CAMERA_STREAM
+        eventType:
+          type: string
+          example: AI_DETECTION
+        cameraId:
+          type: string
+          example: CAM-001
+        frameId:
+          type: string
+          example: F-20260617-0025
+        snapshotUrl:
+          type: string
+          format: uri
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        processedAt:
+          type: string
+          format: date-time
+        motionScore:
+          type: number
+          example: 0.72
+        quality:
+          type: string
+          nullable: true
+        detections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Detection"
+        objectCount:
+          type: integer
+          example: 1
+        labels:
+          type: array
+          items:
+            type: string
+          example: ["person"]
+        maxConfidence:
+          type: number
+          example: 0.96
+        abnormal:
+          type: boolean
+          example: true
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+          example: HIGH
+    ProblemDetails:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+  responses:
+    ValidationError:
+      description: Lỗi định dạng dữ liệu (422)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"

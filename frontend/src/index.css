@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: var(--bg-base);
+  --color-card-base: var(--card-base);
+  --color-border-base: var(--border-base);
+  --color-text-base: var(--text-base);
+  --color-text-muted: var(--text-muted);
+  --font-sans: 'Outfit', sans-serif;
+}
+
+/* Light Theme Variables (Default) */
+:root {
+  --bg-base: #f1f5f9; /* slate-100 */
+  --card-base: #ffffff;
+  --border-base: #cbd5e1; /* slate-300 */
+  --text-base: #0f172a; /* slate-900 */
+  --text-muted: #64748b; /* slate-500 */
+}
+
+/* Dark Theme Variables */
+.dark {
+  --bg-base: #090b11;
+  --card-base: #111522;
+  --border-base: #1e2538;
+  --text-base: #f1f5f9; /* slate-100 */
+  --text-muted: #94a3b8; /* slate-400 */
+}
+
+/* Custom scrollbar and animations */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-base);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.glow-blue {
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+}
+.glow-red {
+  box-shadow: 0 0 15px rgba(244, 63, 94, 0.25);
+}
+.glow-amber {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+}
+.glow-purple {
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15);
+}

@@ -50,6 +50,7 @@ async def receive_b3_access_event(event: B3AccessEvent, response: Response):
             event.timestamp, event.event_id, event.gate_id, event.direction,
             event.access_granted, event.person_type, event.source_service, event.product
         ))
+        print(f"🚪 [Nhận từ B3 Access Gate] Sự kiện quẹt thẻ tại cổng {event.gate_id} | Chiều: {event.direction} | Trạng thái: {'Cho phép' if event.access_granted else 'Từ chối'} | Lưu vào database B5")
         conn.commit()
         cursor.close()
         

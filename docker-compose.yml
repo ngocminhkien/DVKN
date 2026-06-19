@@ -25,6 +25,7 @@ services:
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
+      PYTHONUNBUFFERED: "1"
       DB_HOST: db
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -39,6 +40,7 @@ services:
       B7_NOTIFICATION_URL: ${B7_NOTIFICATION_URL}
       B2_CAMERA_API_URL: ${B2_CAMERA_API_URL}
       B2_BEARER_TOKEN: ${B2_BEARER_TOKEN}
+      B7_BEARER_TOKEN: ${B7_BEARER_TOKEN}
     networks:
       - team-internal
     depends_on:
@@ -50,6 +52,7 @@ services:
       context: .
     container_name: analytics-worker
     environment:
+      PYTHONUNBUFFERED: "1"
       DB_HOST: db
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

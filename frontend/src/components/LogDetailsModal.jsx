@@ -1,6 +1,38 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, RefreshCw } from 'lucide-react';
 
+const translateSource = (src) => {
+  const mapping = {
+    "B6_CORE": "Nghiệp vụ B6",
+    "B7_NOTIFICATION": "Thông báo B7",
+    "B4_VISION": "AI Vision B4"
+  };
+  return mapping[src] || src;
+};
+
+const translateType = (type) => {
+  const mapping = {
+    "FIRE_ALARM": "Báo cháy",
+    "ACCESS": "Kiểm soát ra vào",
+    "NOTIFICATION": "Thông báo",
+    "SYSTEM_ALERT": "Cảnh báo hệ thống"
+  };
+  if (mapping[type]) return mapping[type];
+  if (type && type.toUpperCase().includes("HỎA HOẠN")) return "Báo cháy";
+  if (type && type.toUpperCase().includes("TRUY CẬP")) return "Cảnh báo ra vào";
+  return type;
+};
+
+const translateObjects = (objStr) => {
+  if (!objStr) return "Chuyển động";
+  return objStr
+    .replace(/person/gi, "Người")
+    .replace(/face/gi, "Khuôn mặt")
+    .replace(/Object/gi, "Vật thể")
+    .replace(/\(Khớp\)/g, "(Khớp định danh)")
+    .replace(/\(K\.Khớp\)/g, "(Chưa định danh)");
+};
+
 export default function LogDetailsModal({ isOpen, onClose, category, logs, loading, onRefresh }) {
   const prevLogsRef = useRef(null);
   const [flashId, setFlashId] = useState(null);
@@ -51,10 +83,11 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
 
   // Render headers and cells depending on category
   const renderTableContent = () => {
+    const colSpanCount = getHeaders().length;
     if (loading && (!logs || logs.length === 0)) {
       return (
         <tr className="border-b border-border-base/30 text-xs font-semibold text-text-muted">
-          <td colSpan="4" className="py-20 text-center">
+          <td colSpan={colSpanCount} className="py-20 text-center">
             <div className="flex flex-col items-center gap-3">
               <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
               <span className="text-sm">Đang tải dữ liệu thực tế từ Database...</span>
@@ -67,7 +100,7 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
     if (!logs || logs.length === 0) {
       return (
         <tr className="border-b border-border-base/30 text-xs font-semibold text-text-muted">
-          <td colSpan="4" className="py-20 text-center text-sm">
+          <td colSpan={colSpanCount} className="py-20 text-center text-sm">
             Không tìm thấy bản ghi log nào.
           </td>
         </tr>
@@ -83,14 +116,18 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
           return (
             <tr 
               key={log.id} 
-              className={`border-b border-border-base/30 hover:bg-slate-800/40 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
+              className={`border-b border-border-base/30 hover:bg-border-base/15 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
             >
+              <td className="py-3 px-4 font-mono font-bold text-cyan-400">{log.id}</td>
               <td className="py-3 px-4 text-text-muted font-mono text-[11px]">{formattedTime}</td>
               <td className="py-3 px-4 font-semibold text-text-base">{log.gate}</td>
               <td className="py-3 px-4">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${log.direction === 'IN' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                  {log.direction}
+                  {log.direction === 'IN' ? 'VÀO' : 'RA'}
                 </span>
+              </td>
+              <td className="py-3 px-4 text-text-base">
+                {log.person_type === 'student' ? 'Sinh viên' : log.person_type === 'staff' ? 'Nhân viên' : log.person_type === 'guest' ? 'Khách' : log.person_type || 'Khách'}
               </td>
               <td className="py-3 px-4">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${log.status === 'Thành công' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400 animate-pulse'}`}>
@@ -103,7 +140,7 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
           return (
             <tr 
               key={log.id} 
-              className={`border-b border-border-base/30 hover:bg-slate-800/40 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
+              className={`border-b border-border-base/30 hover:bg-border-base/15 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
             >
               <td className="py-3 px-4 text-text-muted font-mono text-[11px]">{formattedTime}</td>
               <td className="py-3 px-4 font-semibold text-text-base">{log.location}</td>
@@ -117,15 +154,18 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
           return (
             <tr 
               key={log.id} 
-              className={`border-b border-border-base/30 hover:bg-slate-800/40 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
+              className={`border-b border-border-base/30 hover:bg-border-base/15 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
             >
               <td className="py-3 px-4 text-text-muted font-mono text-[11px]">{formattedTime}</td>
               <td className="py-3 px-4">
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-[10px] text-text-base">
-                  {log.source}
+                <span className="px-2 py-0.5 rounded bg-bg-base border border-border-base font-mono text-[10px] text-text-base">
+                  {translateSource(log.source)}
                 </span>
               </td>
-              <td className="py-3 px-4 font-semibold text-text-base">{log.type}</td>
+              <td className="py-3 px-4 font-semibold text-text-base">{translateType(log.type)}</td>
+              <td className="py-3 px-4 text-xs text-text-base text-left max-w-[220px] truncate" title={log.message}>
+                {log.message}
+              </td>
               <td className="py-3 px-4">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   isHigh ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
@@ -141,11 +181,11 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
           return (
             <tr 
               key={log.id} 
-              className={`border-b border-border-base/30 hover:bg-slate-800/40 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
+              className={`border-b border-border-base/30 hover:bg-border-base/15 transition-colors duration-200 ${isFlashed ? 'animate-highlight-flash' : ''}`}
             >
               <td className="py-3 px-4 text-text-muted font-mono text-[11px]">{formattedTime}</td>
               <td className="py-3 px-4 font-semibold text-text-base">{log.camera_id}</td>
-              <td className="py-3 px-4 text-purple-400 font-semibold">{log.objects}</td>
+              <td className="py-3 px-4 text-purple-400 font-semibold">{translateObjects(log.objects)}</td>
               <td className="py-3 px-4 font-mono font-bold text-cyan-400">{log.confidence}%</td>
             </tr>
           );
@@ -158,11 +198,11 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
   const getHeaders = () => {
     switch (category) {
       case 'students':
-        return ["Thời gian", "Cổng", "Chiều", "Trạng thái"];
+        return ["Mã sự kiện", "Thời gian", "Cổng", "Chiều", "Đối tượng", "Trạng thái"];
       case 'temp':
         return ["Thời gian", "Vị trí", "Nhiệt độ", "Độ ẩm"];
       case 'alerts':
-        return ["Thời gian", "Nguồn", "Phân loại", "Mức độ rủi ro"];
+        return ["Thời gian", "Nguồn", "Phân loại", "Chi tiết cảnh báo", "Mức độ rủi ro"];
       case 'camera':
         return ["Thời gian", "Camera ID", "Nhận diện", "Độ tin cậy"];
       default:
@@ -196,14 +236,14 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
       `}</style>
 
       {/* Slide-over Content Container */}
-      <div className="relative w-full max-w-2xl h-full bg-slate-950 border-l border-cyan-500/20 shadow-[0_0_50px_rgba(6,182,212,0.15)] flex flex-col z-10 animate-slide-over">
+      <div className="relative w-full max-w-2xl h-full bg-card-base border-l border-border-base shadow-[0_0_50px_rgba(6,182,212,0.15)] flex flex-col z-10 animate-slide-over">
         {/* Top Glow bar */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-cyan-500 to-purple-500"></div>
 
         {/* Modal Header */}
-        <div className="p-6 border-b border-border-base/30 flex justify-between items-center bg-slate-900/40">
+        <div className="p-6 border-b border-border-base/30 flex justify-between items-center bg-bg-base/30">
           <div className="space-y-1">
-            <h3 className="text-lg font-bold tracking-tight text-white uppercase flex items-center gap-2">
+            <h3 className="text-lg font-bold tracking-tight text-text-base uppercase flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse"></span>
               {titles[category] || "Chi tiết nhật ký"}
             </h3>
@@ -215,14 +255,14 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
               onClick={onRefresh}
               disabled={loading}
               title="Làm mới log"
-              className="p-2.5 rounded-xl border border-slate-800 text-text-muted hover:text-white hover:border-cyan-500/50 hover:bg-slate-900 active:scale-95 transition-all cursor-pointer"
+              className="p-2.5 rounded-xl border border-border-base text-text-muted hover:text-text-base hover:border-cyan-500/50 hover:bg-bg-base active:scale-95 transition-all cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
             <button 
               onClick={onClose}
               title="Đóng cửa sổ (Esc)"
-              className="p-2.5 rounded-xl border border-slate-800 text-text-muted hover:text-white hover:border-rose-500/50 hover:bg-slate-900 active:scale-95 transition-all cursor-pointer"
+              className="p-2.5 rounded-xl border border-border-base text-text-muted hover:text-text-base hover:border-rose-500/50 hover:bg-bg-base active:scale-95 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -246,14 +286,14 @@ export default function LogDetailsModal({ isOpen, onClose, category, logs, loadi
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-border-base/30 bg-slate-950/90 text-right flex justify-between items-center">
+        <div className="p-4 border-t border-border-base/30 bg-bg-base/30 text-right flex justify-between items-center">
           <div className="flex items-center gap-1.5 text-[10px] text-text-muted font-semibold">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
             <span>Đồng bộ tự động mỗi 5 giây</span>
           </div>
           <button 
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-xs font-bold text-text-base transition-all active:scale-95 cursor-pointer shadow-lg hover:shadow-cyan-500/5"
+            className="px-5 py-2 rounded-xl bg-bg-base border border-border-base hover:border-cyan-500/50 text-xs font-bold text-text-base transition-all active:scale-95 cursor-pointer shadow-lg hover:shadow-cyan-500/5"
           >
             Đóng bảng
           </button>

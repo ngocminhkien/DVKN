@@ -8,10 +8,17 @@ from datetime import datetime
 # ==========================================
 # Cấu hình MQTT & Database từ file .env
 # ==========================================
-MQTT_BROKER = os.getenv("MQTT_BROKER", "broker.hivemq.com")
-MQTT_PORT = int(os.getenv("MQTT_PORT", 8883))
-MQTT_USER = os.getenv("MQTT_USER", "")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
+mqtt_broker_env = os.getenv("MQTT_BROKER")
+MQTT_BROKER = mqtt_broker_env if mqtt_broker_env and mqtt_broker_env.strip() else "broker.hivemq.com"
+
+mqtt_port_env = os.getenv("MQTT_PORT")
+MQTT_PORT = int(mqtt_port_env) if mqtt_port_env and mqtt_port_env.strip() else 8883
+
+mqtt_user_env = os.getenv("MQTT_USER")
+MQTT_USER = mqtt_user_env if mqtt_user_env and mqtt_user_env.strip() else ""
+
+mqtt_password_env = os.getenv("MQTT_PASSWORD")
+MQTT_PASSWORD = mqtt_password_env if mqtt_password_env and mqtt_password_env.strip() else ""
 # CODE CŨ:
 # MQTT_TOPIC = "campus/sensor/metrics" # Sửa theo đúng Hợp đồng nhóm B1
 # CODE MỚI THAY THẾ:
@@ -78,7 +85,7 @@ def on_message(client, userdata, msg):
                 cursor.execute(query, (event_time, event_id, device_id, temp, humidity, co2, status, alert_level, reason, json.dumps(payload)))
                 conn.commit()
                 cursor.close()
-                print(f"💾 LƯU THÀNH CÔNG: Thiết bị {device_id} | Nhiệt độ: {temp}°C | Độ ẩm: {humidity}%")
+                print(f"💾 [Nhận từ B1 IoT Ingestion] Thiết bị {device_id} | Nhiệt độ: {temp}°C | Độ ẩm: {humidity}% | Lưu thành công vào database B5")
             except Exception as db_err:
                 print(f"[DB Error] Lỗi ghi DB trong worker: {db_err}")
                 conn.rollback()

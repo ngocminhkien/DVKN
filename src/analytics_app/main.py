@@ -92,47 +92,211 @@ class B2CameraEvent(BaseModel):
 # ==========================================
 def pull_b7_logs():
     time.sleep(10) # Chờ hệ thống khởi động xong
-    b7_url = os.getenv("B7_NOTIFICATION_URL", "http://26.177.175.21:8085") + "/api/v1/alerts/logs"
-    
+    b7_base = os.getenv("B7_NOTIFICATION_URL", "http://26.177.175.21:8000").strip().rstrip("/")
+    b7_token = os.getenv("B7_BEARER_TOKEN", "").strip()
+
+    # Theo OpenAPI B7: /api/v1/alerts/logs KHÔNG cần auth, trả về đầy đủ trường
+    # /notifications/logs cần Bearer Token (401 nếu không có)
+    # Endpoint chính: /api/v1/alerts/logs?limit=50
+    # Schema trả về: [{ticket_id, event_id, alert_id, channel, status, severity, message, timestamp, sent}, ...]
+
+    print(f"🚀 [B5 -> B7] Luồng kéo thông báo khẩn cấp từ B7 khởi động | URL mục tiêu: {b7_base}")
+
     while True:
         try:
-            print(f"🔄 [B5 -> B7] Đang sang nhà B7 lấy log tại {b7_url}...")
-            response = requests.get(b7_url, timeout=5)
+            # --- Ưu tiên /api/v1/alerts/logs (không cần token, đầy đủ trường) ---
+            dashboard_url = f"{b7_base}/api/v1/alerts/logs?limit=50"
+            print(f"🔄 [B5 -> B7] Đang kéo cảnh báo từ B7 Notification Service tại {dashboard_url}...")
+
+            response = requests.get(dashboard_url, timeout=8)
+
+            # Nếu /api/v1/alerts/logs thất bại, thử /notifications/logs với token
+            if response.status_code != 200 and b7_token:
+                fallback_url = f"{b7_base}/notifications/logs?limit=50"
+                print(f"⚠️ [B7] /api/v1/alerts/logs trả về {response.status_code}, thử fallback {fallback_url}...")
+                headers = {"Authorization": f"Bearer {b7_token}"}
+                response = requests.get(fallback_url, headers=headers, timeout=8)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"📩 [B7 Notification] Kéo thành công {len(data)} logs. Đang lưu vào DB...")
+
+                # B7 /api/v1/alerts/logs trả về list trực tiếp
+                # B7 /notifications/logs có thể trả về {"items": [...]}
+                logs_list = []
+                if isinstance(data, list):
+                    logs_list = data
+                elif isinstance(data, dict) and "items" in data:
+                    logs_list = data["items"]
+                elif isinstance(data, dict) and "data" in data:
+                    logs_list = data["data"]
+
+                print(f"📩 [Nhận từ B7 Notification] Kéo thành công {len(logs_list)} thông báo khẩn cấp | Bắt đầu lưu vào database B5...")
+
                 conn = get_db_connection()
-                if conn:
+                if conn and logs_list:
+                    saved_count = 0
+                    skipped_count = 0
                     try:
                         cursor = conn.cursor()
-                        for log in data:
-                            log_time = log.get("timestamp") or log.get("time") or datetime.now()
-                            log_type = log.get("log_type") or log.get("type") or "SYSTEM_ALERT"
-                            details = log.get("details") or log
+                        for log in logs_list:
+                            if not isinstance(log, dict):
+                                continue
+
+                            ticket_id = log.get("ticket_id")
+                            event_id = log.get("event_id") or log.get("alert_id")
+                            severity = log.get("severity", "MEDIUM")
+                            message = log.get("message", "")
+                            channel = log.get("channel", "unknown")
+                            status = log.get("status", "unknown")
+
+                            # Parse timestamp
+                            raw_ts = log.get("timestamp") or log.get("time")
+                            try:
+                                if isinstance(raw_ts, str):
+                                    log_time = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                                else:
+                                    log_time = datetime.now()
+                            except Exception:
+                                log_time = datetime.now()
+
+                            # Xác định log_type từ nội dung message
+                            msg_upper = message.upper()
+                            if "HỎA HOẠN" in msg_upper or "FIRE" in msg_upper or "CHÁY" in msg_upper:
+                                log_type = "FIRE_ALARM"
+                            elif "XÂM NHẬP" in msg_upper or "INVALID_CARD" in msg_upper or "THẺ LẠ" in msg_upper:
+                                log_type = "ACCESS_VIOLATION"
+                            elif severity in ["CRITICAL", "HIGH"]:
+                                log_type = "EMERGENCY_ALERT"
+                            else:
+                                log_type = "SYSTEM_ALERT"
+
+                            # Chống trùng lặp: kiểm tra ticket_id đã có trong DB chưa
+                            if ticket_id:
+                                cursor.execute(
+                                    "SELECT COUNT(*) FROM campus_logs WHERE details->>'ticket_id' = %s",
+                                    (ticket_id,)
+                                )
+                                already_exists = cursor.fetchone()[0] > 0
+                                if already_exists:
+                                    skipped_count += 1
+                                    continue
+
+                            # Tạo details JSON đầy đủ để lưu vào DB
+                            details_payload = {
+                                "ticket_id": ticket_id,
+                                "event_id": event_id,
+                                "message": message,
+                                "severity": severity,
+                                "channel": channel,
+                                "status": status,
+                                "module": "notification",
+                                "source": "B7_NOTIFICATION",
+                                "event_type": log_type
+                            }
+
                             cursor.execute(
                                 "INSERT INTO campus_logs (time, log_type, details) VALUES (%s, %s, %s)",
-                                (log_time, log_type, json.dumps(details))
+                                (log_time, log_type, json.dumps(details_payload, ensure_ascii=False))
                             )
+                            saved_count += 1
+
                         conn.commit()
                         cursor.close()
+                        if saved_count > 0:
+                            print(f"💾 [Lưu Database B5] Đã lưu {saved_count} cảnh báo mới từ B7 vào bảng campus_logs (Bỏ qua {skipped_count} trùng lặp)")
+                        else:
+                            print(f"✅ [B7 Notification] Không có cảnh báo mới — Tất cả {skipped_count} bản ghi đã tồn tại trong database B5")
                     except Exception as db_err:
-                        print(f"Lỗi lưu B7 logs vào DB: {db_err}")
+                        print(f"❌ [Lỗi DB] Không thể lưu B7 logs: {db_err}")
                         conn.rollback()
                     finally:
                         conn.close()
+            elif response.status_code == 401:
+                print(f"🔐 [B7 Notification] Yêu cầu xác thực (401) — Kiểm tra B7_BEARER_TOKEN trong .env")
             else:
-                print(f"⚠️ [B7 Notification] Lỗi! B7 trả về mã: {response.status_code}")
+                print(f"⚠️ [B7 Notification] Lỗi! B7 trả về mã HTTP {response.status_code}")
+        except requests.exceptions.ConnectionError as e:
+            print(f"❌ [B7 Notification] Không kết nối được tới {b7_base} — Kiểm tra Radmin VPN (Lỗi: {type(e).__name__})")
+        except requests.exceptions.Timeout:
+            print(f"⏱️ [B7 Notification] Kết nối tới {b7_base} bị timeout — B7 có thể đang quá tải")
         except Exception as e:
-            print(f"❌ [B7 Notification] B7 đang sập hoặc chưa mở Radmin (Lỗi: {e})")
-        
-        # Ngủ 60 giây rồi chạy đi kéo tiếp
-        time.sleep(60)
+            print(f"❌ [B7 Notification] Lỗi không xác định: {type(e).__name__}: {e}")
+
+        # Kéo lại mỗi 30 giây thay vì 60 để nhận cảnh báo kịp thời hơn
+        time.sleep(30)
+
+
+def seed_initial_data():
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM sensor_events;")
+            count = cursor.fetchone()[0]
+            if count < 10:
+                print(f"🌱 [Database Seeding] sensor_events has only {count} rows. Seeding 15 historical readings...")
+                now = datetime.now()
+                import math
+                for i in range(15):
+                    # Spread out events every 1.5 hours in the past
+                    event_time = now - timedelta(hours=1.5 * (15 - i))
+                    event_id = f"seed-b1-sensor-{1000 + i}"
+                    device_id = "iot-room-101"
+                    # Sinusoidal curve peaking at 14:00 (2 PM)
+                    hour_float = event_time.hour + event_time.minute / 60.0
+                    temp = 30.5 + 2.5 * math.sin((hour_float - 8) * math.pi / 12)
+                    humidity = 60.0 - 10.0 * math.sin((hour_float - 8) * math.pi / 12)
+                    co2 = 420.0 + 30.0 * math.sin((hour_float - 12) * math.pi / 12)
+                    
+                    status = "online"
+                    alert_level = "normal"
+                    reason = "Scheduled reading"
+                    raw_payload = {
+                        "device_id": device_id,
+                        "temperature": round(temp, 1),
+                        "humidity": round(humidity, 1),
+                        "co2_ppm": int(co2),
+                        "status": status,
+                        "alert_level": alert_level,
+                        "reason": reason,
+                        "timestamp": event_time.isoformat()
+                    }
+                    
+                    query = """
+                        INSERT INTO sensor_events 
+                        (time, event_id, device_id, temperature_c, humidity_percent, co2_ppm, status, alert_level, reason, raw_payload)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(query, (
+                        event_time, 
+                        event_id, 
+                        device_id, 
+                        round(temp, 1), 
+                        round(humidity, 1), 
+                        int(co2), 
+                        status, 
+                        alert_level, 
+                        reason, 
+                        json.dumps(raw_payload)
+                    ))
+                conn.commit()
+                print("🌱 [Database Seeding] Completed seeding sensor_events.")
+            cursor.close()
+        except Exception as e:
+            print(f"Lỗi seeding database: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            conn.close()
 
 @app.on_event("startup")
 def startup_event():
+    # Gieo dữ liệu lịch sử nếu cần thiết
+    seed_initial_data()
     # Kích hoạt điệp viên chạy ngầm ngay khi bật Server
     thread = threading.Thread(target=pull_b7_logs, daemon=True)
     thread.start()
+
 
 # ==========================================
 # CÁC API ENDPOINT (ROUTERS)
@@ -143,7 +307,7 @@ async def health_check():
 
 @app.post("/analytics/camera-events", status_code=202, tags=["ingestion"])
 def ingest_camera_event(event: B2CameraEvent):
-    print(f"🔥 [B2 Camera] Webhook từ {event.cameraId} - Phát hiện {event.objectCount} {event.labels} - Mức độ: {event.severity}")
+    print(f"🔥 [Nhận từ B2 Camera Stream] Webhook từ Camera {event.cameraId} - Phát hiện {event.objectCount} đối tượng {event.labels} - Mức độ: {event.severity} | Lưu vào database B5")
     conn = get_db_connection()
     if conn:
         try:
@@ -176,12 +340,12 @@ def ingest_vision_webhook(event: Dict[str, Any]):
     if detection_type == "OBJECT":
         objects = event.get("detectedObjects", [])
         risk = event.get("riskLevel")
-        print(f"👁️ [B4 AI Vision] Nhận diện VẬT THỂ từ {camera_id} - Phát hiện {len(objects)} đối tượng - Rủi ro: {risk}")
+        print(f"👁️ [Nhận từ B4 AI Vision] Nhận diện VẬT THỂ từ Camera {camera_id} - Phát hiện {len(objects)} đối tượng - Mức độ rủi ro: {risk} | Lưu vào database B5")
     elif detection_type == "FACE":
         matched = event.get("faceMatched")
         conf = event.get("confidence")
         match_status = "Thành công" if matched else "Không khớp"
-        print(f"👤 [B4 AI Vision] Nhận diện KHUÔN MẶT từ {camera_id} - Kết quả: {match_status} (Độ tin cậy: {conf})")
+        print(f"👤 [Nhận từ B4 AI Vision] Nhận diện KHUÔN MẶT từ Camera {camera_id} - Kết quả: {match_status} (Độ tin cậy: {conf}) | Lưu vào database B5")
     else:
         print(f"⚠️ [B4 AI Vision] Nhận loại dữ liệu không xác định từ {camera_id}")
 
@@ -202,7 +366,7 @@ def ingest_vision_webhook(event: Dict[str, Any]):
             else:
                 ts = datetime.utcnow()
                 
-            frame_id = event.get("frameId") or event.get("frame_id") or f"b4-{camera_id or 'unknown'}-{int(time.time()*1000)}"
+            frame_id = event.get("detectionId") or event.get("frameId") or event.get("frame_id") or f"b4-{camera_id or 'unknown'}-{int(time.time()*1000)}"
             
             # Tạo danh sách nhận diện
             detections_list = []
@@ -218,7 +382,7 @@ def ingest_vision_webhook(event: Dict[str, Any]):
                     "label": "face",
                     "confidence": event.get("confidence") or 1.0,
                     "matched": event.get("faceMatched", False),
-                    "person_id": event.get("personId")
+                    "person_id": event.get("matchedPersonId") or event.get("personId")
                 })
             
             accepted = True
@@ -249,7 +413,7 @@ def ingest_vision_webhook(event: Dict[str, Any]):
             ))
             conn.commit()
             cursor.close()
-            print(f"💾 [B5 Database] Đã lưu thành công log B4 AI Vision {frame_id} vào camera_frames")
+            print(f"💾 [Lưu Database B5] Đã lưu thành công log nhận diện từ B4 AI Vision {frame_id} vào bảng camera_frames")
         except Exception as e:
             print(f"Lỗi khi lưu webhook B4 AI Vision vào DB: {e}")
             conn.rollback()
@@ -271,7 +435,7 @@ def get_dashboard_logs_access():
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT time, gate_id, direction, access_granted, person_type 
+                SELECT time, gate_id, direction, access_granted, person_type, event_id 
                 FROM gate_events 
                 ORDER BY time DESC 
                 LIMIT 50;
@@ -279,7 +443,7 @@ def get_dashboard_logs_access():
             rows = cursor.fetchall()
             for idx, r in enumerate(rows):
                 logs.append({
-                    "id": f"acc-db-{idx+1}",
+                    "id": r[5] or f"acc-db-{idx+1}",
                     "time": r[0].isoformat(),
                     "gate": r[1] or "Unknown Gate",
                     "direction": r[2] or "IN",
@@ -287,6 +451,7 @@ def get_dashboard_logs_access():
                     "person_type": r[4] or "Khách"
                 })
             cursor.close()
+            print(f"📊 [Truy vấn B5 Database] Lấy {len(logs)} lượt ra vào mới nhất gửi về Frontend")
         except Exception as e:
             print(f"Lỗi truy vấn gate_events: {e}")
         finally:
@@ -361,17 +526,20 @@ def get_dashboard_logs_alerts():
                 #     "severity": severity
                 # })
                 # CODE MỚI THAY THẾ:
-                is_b7 = details.get("module") == "notification"
+                is_b7 = details.get("module") == "notification" or "ticket_id" in details
                 source = "B7_NOTIFICATION" if is_b7 else "B6_CORE"
                 
                 # Trích xuất severity từ B7 hoặc B6
                 if is_b7:
                     b7_msg = details.get("message", {})
-                    b7_sev = b7_msg.get("severity") if isinstance(b7_msg, dict) else None
-                    severity = (b7_sev or "medium").upper()
-                    event_type = "NOTIFICATION"
-                    if isinstance(b7_msg, dict) and b7_msg.get("message"):
-                        event_type = b7_msg.get("message")
+                    if isinstance(b7_msg, dict):
+                        b7_sev = b7_msg.get("severity") or details.get("severity")
+                        severity = (b7_sev or "medium").upper()
+                        event_type = b7_msg.get("message") or "NOTIFICATION"
+                    else:
+                        # message is a string in new OpenAPI format
+                        severity = (details.get("severity") or "medium").upper()
+                        event_type = details.get("message") or "NOTIFICATION"
                 else:
                     severity = "MEDIUM"
                     if log_type == "FIRE_ALARM":
@@ -380,12 +548,20 @@ def get_dashboard_logs_alerts():
                         severity = str(details.get("severity")).upper()
                     event_type = details.get("event_type", log_type)
 
+                # Get the detailed message string
+                msg_val = details.get("message") or details.get("description")
+                if not msg_val and is_b7:
+                    msg_val = details.get("message") if isinstance(details.get("message"), str) else None
+                if not msg_val:
+                    msg_val = f"Cảnh báo hệ thống {event_type}"
+
                 logs.append({
                     "id": f"alt-db-c-{idx+1}",
                     "time": t_val.isoformat(),
                     "source": source,
                     "type": event_type,
-                    "severity": severity
+                    "severity": severity,
+                    "message": msg_val
                 })
 
             cursor.execute("""
@@ -402,7 +578,8 @@ def get_dashboard_logs_alerts():
                     "time": r[0].isoformat(),
                     "source": "B4_VISION",
                     "type": f"Nhận diện bất thường tại {r[1]}",
-                    "severity": "HIGH" if r[2] > 0.8 else "MEDIUM"
+                    "severity": "HIGH" if r[2] > 0.8 else "MEDIUM",
+                    "message": f"Phát hiện vật thể bất thường tại camera {r[1]} (Độ tự tin: {round(r[2]*100, 1)}%)"
                 })
 
             cursor.close()
@@ -496,8 +673,8 @@ def get_dashboard_live(range: str = "today"):
         return url
 
     services_to_check = {
-        "b1_iot": get_health_url("B1_IOT_URL", "http://26.190.131.131:8000"),
-        "b2_camera": get_health_url("B2_CAMERA_URL", "http://26.38.132.64:8000"),
+        "b1_iot": get_health_url("B1_IOT_URL", "http://26.184.240.188:8000"),
+        "b2_camera": get_health_url("B2_CAMERA_URL", "http://26.230.25.250:8000"),
         "b3_access": get_health_url("B3_ACCESS_URL", "http://26.222.63.164:8000"),
         "b4_vision": get_health_url("B4_VISION_URL", "http://26.79.18.68:8000"),
         "b6_core": get_health_url("B6_CORE_URL", "http://26.76.38.192:8000"),
@@ -628,17 +805,20 @@ def get_dashboard_live(range: str = "today"):
                 #     "severity": severity
                 # })
                 # CODE MỚI THAY THẾ:
-                is_b7 = details.get("module") == "notification"
+                is_b7 = details.get("module") == "notification" or "ticket_id" in details
                 source = "B7_NOTIFICATION" if is_b7 else "B6_CORE"
                 
                 # Trích xuất severity từ B7 hoặc B6
                 if is_b7:
                     b7_msg = details.get("message", {})
-                    b7_sev = b7_msg.get("severity") if isinstance(b7_msg, dict) else None
-                    severity = (b7_sev or "medium").upper()
-                    event_type = "NOTIFICATION"
-                    if isinstance(b7_msg, dict) and b7_msg.get("message"):
-                        event_type = b7_msg.get("message")
+                    if isinstance(b7_msg, dict):
+                        b7_sev = b7_msg.get("severity") or details.get("severity")
+                        severity = (b7_sev or "medium").upper()
+                        event_type = b7_msg.get("message") or "NOTIFICATION"
+                    else:
+                        # message is a string in new OpenAPI format
+                        severity = (details.get("severity") or "medium").upper()
+                        event_type = details.get("message") or "NOTIFICATION"
                 else:
                     severity = "MEDIUM"
                     if log_type == "FIRE_ALARM":
@@ -647,12 +827,20 @@ def get_dashboard_live(range: str = "today"):
                         severity = str(details.get("severity")).upper()
                     event_type = details.get("event_type", log_type)
 
+                # Get the detailed message string
+                msg_val = details.get("message") or details.get("description")
+                if not msg_val and is_b7:
+                    msg_val = details.get("message") if isinstance(details.get("message"), str) else None
+                if not msg_val:
+                    msg_val = f"Cảnh báo hệ thống {event_type}"
+
                 recent_alerts.append({
                     "id": f"ALT-{idx+1}",
                     "time": t_val.isoformat(),
                     "source": source,
                     "type": event_type,
-                    "severity": severity
+                    "severity": severity,
+                    "message": msg_val
                 })
 
             # Đọc thêm cảnh báo camera bất thường
@@ -670,13 +858,15 @@ def get_dashboard_live(range: str = "today"):
                     "time": r[0].isoformat(),
                     "source": "B4_VISION",
                     "type": f"Nhận diện bất thường tại {r[1]}",
-                    "severity": "HIGH" if r[2] > 0.8 else "MEDIUM"
+                    "severity": "HIGH" if r[2] > 0.8 else "MEDIUM",
+                    "message": f"Phát hiện vật thể bất thường tại camera {r[1]} (Độ tự tin: {round(r[2]*100, 1)}%)"
                 })
 
             recent_alerts.sort(key=lambda x: x["time"], reverse=True)
             recent_alerts = recent_alerts[:10]
 
             cursor.close()
+            print(f"📊 [BFF API] Cập nhật Live Stats | Lượt ra vào: {stats['total_access']} | Nhiệt độ TB: {stats['avg_temp']}°C | Cảnh báo: {stats['total_alerts']} | Chuyển động: {stats['camera_detections']}")
         except Exception as e:
             print(f"Lỗi DB trong get_dashboard_live: {e}")
         finally:

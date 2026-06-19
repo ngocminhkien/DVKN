@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../config';
 /* ==========================================================================
    OLD MOCK/VPN CODE REMOVED
    We completely disabled and removed the old logic:
-   - const API_IP_BASE = 'http://26.21.187.230:8000';
+   - const API_IP_BASE = 'http://26.70.59.176:8000'; // IP cũ của nhóm: 26.21.187.230
    - Dynamic targetUrl fallback based on window.location.port or VPN IP checks.
    - fetchDashboardSummary which was unused in the application.
    ========================================================================== */

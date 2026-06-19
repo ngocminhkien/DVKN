@@ -63,6 +63,7 @@ async def receive_b6_export(payload: ExportPayload):
         ]
         
         cursor.executemany(insert_query, records_to_insert)
+        print(f"📦 [Nhận từ B6 Core Business] Webhook xuất báo cáo chứa {len(records_to_insert)} bản ghi cảnh báo | Lưu vào database B5")
         conn.commit()
         cursor.close()
         

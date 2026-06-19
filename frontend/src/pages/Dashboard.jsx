@@ -15,6 +15,28 @@ const serviceNames = {
   b7_notification: 'B7 Cảnh báo'
 };
 
+const translateSource = (src) => {
+  const mapping = {
+    "B6_CORE": "Nghiệp vụ B6",
+    "B7_NOTIFICATION": "Thông báo B7",
+    "B4_VISION": "AI Vision B4"
+  };
+  return mapping[src] || src;
+};
+
+const translateType = (type) => {
+  const mapping = {
+    "FIRE_ALARM": "Báo cháy",
+    "ACCESS": "Kiểm soát ra vào",
+    "NOTIFICATION": "Thông báo",
+    "SYSTEM_ALERT": "Cảnh báo hệ thống"
+  };
+  if (mapping[type]) return mapping[type];
+  if (type && type.toUpperCase().includes("HỎA HOẠN")) return "Báo cháy";
+  if (type && type.toUpperCase().includes("TRUY CẬP")) return "Cảnh báo ra vào";
+  return type;
+};
+
 const SkeletonCard = () => (
   <div className="bg-card-base border border-border-base p-6 rounded-3xl shadow-2xl relative overflow-hidden animate-pulse min-h-[140px] flex flex-col justify-between transition-colors duration-300">
     <div className="flex justify-between items-start">
@@ -96,7 +118,7 @@ export default function Dashboard() {
 
   // Hàm tạo Toast thông báo
   const showToast = (message) => {
-    const id = Date.now();
+    const id = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     setToasts((t) => [...t, { id, message }]);
     setTimeout(() => {
       setToasts((t) => t.filter((x) => x.id !== id));
@@ -185,10 +207,10 @@ export default function Dashboard() {
     // Gọi API lần đầu tiên
     loadData(true);
 
-    // Thiết lập vòng lặp cập nhật mỗi 5 giây
+    // Thiết lập vòng lặp cập nhật mỗi 3 giây
     const interval = setInterval(() => {
       loadData(false);
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [timeRange]); // reload lại luồng polling khi timeRange đổi
@@ -343,10 +365,17 @@ export default function Dashboard() {
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="px-2.5 py-0.5 rounded-lg bg-bg-base border border-border-base font-mono text-[10px] text-text-base">
-                          {alert.source}
+                          {translateSource(alert.source)}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-text-base font-semibold">{alert.type}</td>
+                      <td className="py-3.5 px-4 text-text-base font-semibold">
+                        <div>{translateType(alert.type)}</div>
+                        {alert.message && (
+                          <div className="text-[10px] text-text-muted mt-0.5 font-normal max-w-sm truncate" title={alert.message}>
+                            {alert.message}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3.5 px-4">
                         <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold tracking-wider uppercase ${
                           isHigh ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :

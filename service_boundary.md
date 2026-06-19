@@ -13,6 +13,8 @@ Analytics Service (B5) đóng vai trò là điểm cuối (Consumer cuối cùng
 | :--- | :--- | :--- | :--- |
 | **Upstream** (Hút data về) | **IoT Ingestion (B1)** | MQTT (Subscribe) | Worker của B5 chạy ngầm, subscribe topic của B1 để kéo dữ liệu nhiệt độ, độ ẩm. |
 | **Upstream** (Hút data về) | **Camera Stream (B2)** | REST API (GET) | Worker của B5 định kỳ gọi API `/frames/latest` của B2 để kéo lịch sử nhận diện. |
+| **Upstream** (Hút data về) | **Notification (B7)** | REST API (GET) | B5 chạy ngầm định kỳ gọi `/notifications/logs` (hoặc `/api/v1/alerts/logs`) của B7 để kéo log lịch sử thông báo. |
 | **Upstream** (Nhận data đẩy tới) | **Access Gate (B3)** | REST API (POST) | B3 chủ động gọi API `/api/v1/ingest/access` của B5 mỗi khi có sự kiện quẹt thẻ. |
+| **Upstream** (Nhận data đẩy tới) | **AI Vision (B4)** | REST API (POST) | B4 chủ động gọi Webhook `/api/v1/analytics/vision` để đẩy kết quả nhận diện vật thể/khuôn mặt về B5. |
 | **Upstream** (Nhận data đẩy tới) | **Core Business (B6)** | REST API (POST) | B6 chủ động gọi API `/analytics/export` của B5 để xuất báo cáo cảnh báo tập trung. |
 | **Downstream** (Cung cấp data) | **Admin Dashboard / End-User** | REST API (GET) | B5 cung cấp các API (ví dụ: tổng lượt ra vào, nhiệt độ trung bình) để hệ thống Dashboard hiển thị biểu đồ. |

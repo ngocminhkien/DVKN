@@ -1,0 +1,492 @@
+openapi: 3.1.0
+info:
+  title: Product B - Camera Stream API
+  version: 0.1.0-b2
+  description: B2 service for receiving camera streams and processing camera frames.
+servers:
+  - url: http://localhost:8000
+    description: Docker Compose API service
+  - url: http://localhost:4010
+    description: Prism mock server
+tags:
+  - name: system
+  - name: integrations
+  - name: camera
+  - name: streams
+  - name: frames
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: Service health
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /integrations/status:
+    get:
+      tags: [integrations]
+      summary: Get configured downstream integrations
+      description: Shows B4, optional B5 Analytics and optional B6 Core Business integration settings.
+      security: []
+      responses:
+        "200":
+          description: Integration configuration and forwarding status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationStatus"
+  /camera/stream/health:
+    get:
+      tags: [camera]
+      summary: Check source camera stream
+      description: Reads one frame from the configured MJPEG camera stream and reports preprocessing details.
+      responses:
+        "200":
+          description: Camera stream can be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CameraStreamHealth"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          description: Camera stream is unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /camera/capture:
+    post:
+      tags: [camera]
+      summary: Capture one camera frame and forward to B4 when triggered
+      description: Reads one frame, preprocesses it, calculates motion score, saves a snapshot and calls B4 AI Vision when motion is detected or force=true.
+      parameters:
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Capture attempt result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CameraCaptureResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          description: Camera stream or B4 AI Vision is unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /streams:
+    post:
+      tags: [streams]
+      summary: Register a camera stream session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StreamCreate"
+      responses:
+        "201":
+          description: Stream session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamSession"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /frames:
+    post:
+      tags: [frames]
+      summary: Ingest and process a camera frame
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FrameCreate"
+      responses:
+        "201":
+          description: Frame accepted and processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          description: B4 AI Vision is unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /frames/latest:
+    get:
+      tags: [frames]
+      summary: Get latest processed frames
+      parameters:
+        - name: camera_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Latest frame results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FrameResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /frames/{frame_id}:
+    get:
+      tags: [frames]
+      summary: Get a processed frame by id
+      parameters:
+        - name: frame_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: F-20260616-0001
+      responses:
+        "200":
+          description: Frame result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Frame not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token
+  responses:
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    ValidationError:
+      description: Invalid request payload
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, version, db, processor_url]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: camera-stream
+        version:
+          type: string
+          example: 0.1.0-b2
+        db:
+          type: string
+          example: ok
+        processor_url:
+          type: string
+          example: http://ai-service:9000
+    IntegrationStatus:
+      type: object
+      required: [b4_ai_vision_url, b5_forwarding_enabled, b6_forwarding_enabled, b5_event_path, b6_event_path, auto_capture_enabled, auto_capture_interval_seconds, motion_threshold, ai_cooldown_seconds]
+      properties:
+        b4_ai_vision_url:
+          type: string
+          example: http://26.79.18.68:8000
+        b5_analytics_url:
+          type: [string, "null"]
+          example: http://26.10.10.25:8000
+        b6_core_business_url:
+          type: [string, "null"]
+          example: http://26.10.10.26:8000
+        b5_forwarding_enabled:
+          type: boolean
+          example: false
+        b6_forwarding_enabled:
+          type: boolean
+          example: false
+        b5_event_path:
+          type: string
+          example: /analytics/camera-events
+        b6_event_path:
+          type: string
+          example: /camera-events
+        auto_capture_enabled:
+          type: boolean
+          example: true
+        auto_capture_interval_seconds:
+          type: number
+          example: 3
+        motion_threshold:
+          type: number
+          example: 0.02
+        ai_cooldown_seconds:
+          type: integer
+          example: 10
+    CameraStreamHealth:
+      type: object
+      required: [status, camera_id, location, frame_width, frame_height, jpeg_size_bytes]
+      properties:
+        status:
+          type: string
+          example: ok
+        camera_id:
+          type: string
+          example: CAM-001
+        location:
+          type: string
+          example: Product B lobby
+        frame_width:
+          type: integer
+          example: 640
+        frame_height:
+          type: integer
+          example: 480
+        jpeg_size_bytes:
+          type: integer
+          example: 41074
+    StreamCreate:
+      type: object
+      required: [camera_id, location, stream_url]
+      properties:
+        camera_id:
+          type: string
+          minLength: 3
+          example: CAM-001
+        location:
+          type: string
+          minLength: 2
+          example: Product B lobby
+        stream_url:
+          type: string
+          format: uri
+          example: rtsp://camera-b.local/stream/01
+    StreamSession:
+      allOf:
+        - $ref: "#/components/schemas/StreamCreate"
+        - type: object
+          required: [stream_id, status, created_at]
+          properties:
+            stream_id:
+              type: string
+              example: S-20260616-0001
+            status:
+              type: string
+              example: receiving
+            created_at:
+              type: string
+              format: date-time
+    FrameCreate:
+      type: object
+      required: [camera_id, timestamp]
+      properties:
+        camera_id:
+          type: string
+          minLength: 3
+          example: CAM-001
+        frame_url:
+          type: string
+          format: uri
+          example: https://example.com/frame-001.jpg
+        frame_base64:
+          type: string
+          minLength: 8
+        timestamp:
+          type: string
+          format: date-time
+    Detection:
+      type: object
+      required: [label, confidence]
+      properties:
+        label:
+          type: string
+          example: person
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          example: 0.96
+    FrameResult:
+      type: object
+      required: [frame_id, camera_id, accepted, timestamp, processed_at, detections, motion_score, quality]
+      properties:
+        frame_id:
+          type: string
+          example: F-20260616-0001
+        camera_id:
+          type: string
+          example: CAM-001
+        accepted:
+          type: boolean
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+        detections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Detection"
+        motion_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          example: 0.72
+        quality:
+          type: string
+          example: good
+    CameraCaptureResult:
+      type: object
+      required: [frame_id, camera_id, motion_detected, motion_score, forwarded_to_ai, reason]
+      properties:
+        frame_id:
+          type: string
+          example: F-20260617-0025
+        camera_id:
+          type: string
+          example: CAM-001
+        motion_detected:
+          type: boolean
+          example: true
+        motion_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          example: 0.72
+        forwarded_to_ai:
+          type: boolean
+          example: true
+        reason:
+          type: string
+          enum: [motion_detected, force_capture, motion_below_threshold, ai_cooldown_active]
+          example: motion_detected
+        snapshot_url:
+          type: [string, "null"]
+          format: uri
+          example: http://26.38.132.64:8000/snapshots/CAM-001/F-20260617-0025.jpg
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/FrameResult"
+            - type: "null"
+    CameraEvent:
+      type: object
+      description: Event shape B2 forwards to B5 Analytics and B6 Core Business when configured.
+      required: [sourceService, eventType, cameraId, frameId, timestamp, processedAt, motionScore, detections, objectCount, labels, maxConfidence, abnormal, severity]
+      properties:
+        sourceService:
+          type: string
+          example: B2_CAMERA_STREAM
+        eventType:
+          type: string
+          example: AI_DETECTION
+        cameraId:
+          type: string
+          example: CAM-001
+        frameId:
+          type: string
+          example: F-20260617-0025
+        snapshotUrl:
+          type: [string, "null"]
+          format: uri
+        timestamp:
+          type: string
+          format: date-time
+        processedAt:
+          type: string
+          format: date-time
+        motionScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        quality:
+          type: string
+        detections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Detection"
+        objectCount:
+          type: integer
+        labels:
+          type: array
+          items:
+            type: string
+        maxConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        abnormal:
+          type: boolean
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+    ProblemDetails:
+      type: object
+      required: [type, title, status, detail]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string

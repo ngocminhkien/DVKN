@@ -98,10 +98,10 @@ curl -X POST http://localhost:8000/api/v1/ingest/access \
 📦 6. Danh mục Minh chứng Đính kèm (Demo Pack Deliverables)
 Đáp ứng đầy đủ 100% các thành phần bắt buộc của Demo Pack .
 <p align="center">
-  <img src="" width="600" alt="Sơ đồ ranh giới hệ thống">
+  <img src="B5.jpg" width="600" alt="Sơ đồ ranh giới hệ thống">
 </p>
 <p align="center">
-  <img src="checklists/service_boundary.png" width="600" alt="Sơ đồ ranh giới hệ thống">
+  <img src="B5-1.jpg" width="600" alt="Sơ đồ ranh giới hệ thống">
 </p>
 Mã nguồn ứng dụng: Nằm trong thư mục 📁 src/ (Backend) và 📁 frontend/ (Giao diện React).
 

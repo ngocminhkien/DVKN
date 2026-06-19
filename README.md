@@ -13,7 +13,6 @@ Dịch vụ **Analytics Service (B5)** đóng vai trò là bộ não xử lý tr
 *   **Data Owner:** Nhóm B5 chịu trách nhiệm lưu trữ và sở hữu dữ liệu tổng hợp nhật ký (Logs Analytics Data).
 
 ### Luồng Giao tiếp Hệ thống (System Data Flow)
-```text
 ┌─────────────────┐             (MQTT QoS 1)             ┌──────────────────────┐
 │  B1 - IoT Node  │ ───────────────────────────────────> │                      │
 └─────────────────┘                                      │                      │
@@ -32,6 +31,7 @@ Dịch vụ **Analytics Service (B5)** đóng vai trò là bộ não xử lý tr
                                                          │  ReactJS Dashboard   │
                                                          │ (Polling 5s + Drill) │
                                                          └──────────────────────┘
+
 📜 3. Hợp đồng API Spec (OpenAPI Contract & Endpoints)
 Đạt mức điểm: Tốt - Có đầy đủ Schema, Status Code, Example, Error Model, và Authentication (image_3aff9e.jpg).
 
@@ -98,7 +98,7 @@ curl -X POST http://localhost:8000/api/v1/ingest/access \
 📦 6. Danh mục Minh chứng Đính kèm (Demo Pack Deliverables)
 Đáp ứng đầy đủ 100% các thành phần bắt buộc của Demo Pack .
 <p align="center">
-  <img src="checklists/service_boundary.png" width="600" alt="Sơ đồ ranh giới hệ thống">
+  <img src="" width="600" alt="Sơ đồ ranh giới hệ thống">
 </p>
 <p align="center">
   <img src="checklists/service_boundary.png" width="600" alt="Sơ đồ ranh giới hệ thống">
